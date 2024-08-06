@@ -1,6 +1,8 @@
 import type { SVGProps } from 'react'
 
+import React from 'react'
 import * as Checkbox from '@radix-ui/react-checkbox'
+import { useAutoAnimate } from '@formkit/auto-animate/react'
 
 import { api } from '@/utils/client/api'
 
@@ -63,31 +65,95 @@ import { api } from '@/utils/client/api'
  *  - https://auto-animate.formkit.com
  */
 
-export const TodoList = () => {
-  const { data: todos = [] } = api.todo.getAll.useQuery({
-    statuses: ['completed', 'pending'],
+interface PropsStatusTodo {
+  status: string
+}
+
+export const TodoList = ({ status }: PropsStatusTodo) => {
+  const changeStatus = status === 'completed' ? 'completed' : 'pending'
+  const { data: todos = [], refetch } = api.todo.getAll.useQuery({
+    statuses: status === 'all' ? ['completed', 'pending'] : [changeStatus],
   })
 
-  return (
-    <ul className="grid grid-cols-1 gap-y-3">
-      {todos.map((todo) => (
-        <li key={todo.id}>
-          <div className="flex items-center rounded-12 border border-gray-200 px-4 py-3 shadow-sm">
-            <Checkbox.Root
-              id={String(todo.id)}
-              className="flex h-6 w-6 items-center justify-center rounded-6 border border-gray-300 focus:border-gray-700 focus:outline-none data-[state=checked]:border-gray-700 data-[state=checked]:bg-gray-700"
-            >
-              <Checkbox.Indicator>
-                <CheckIcon className="h-4 w-4 text-white" />
-              </Checkbox.Indicator>
-            </Checkbox.Root>
+  const { mutate: updateTodoStatus } = api.todoStatus.update.useMutation({
+    onSuccess: () => {
+      refetch()
+    },
+  })
 
-            <label className="block pl-3 font-medium" htmlFor={String(todo.id)}>
-              {todo.body}
-            </label>
-          </div>
-        </li>
-      ))}
+  const { mutate: deleteTodo } = api.todo.delete.useMutation({
+    onSuccess: () => {
+      refetch()
+    },
+  })
+
+  const handleChange = (id: number, checked: boolean) => {
+    const updateStatus = checked ? 'completed' : 'pending'
+    updateTodoStatus({
+      todoId: id,
+      status: updateStatus,
+    })
+  }
+
+  const handleDeleteTodo = (itemId: number) => {
+    deleteTodo({
+      id: itemId,
+    })
+  }
+
+  const [parentList] = useAutoAnimate()
+
+  const renderTodos = () => {
+    if (Object.keys(todos).length > 0) {
+      return todos.map((todo) => {
+        return (
+          <li
+            key={todo.id}
+            className={`flex items-center justify-between rounded-12 border border-gray-200 px-4 py-3 shadow-sm ${
+              todo.status === 'completed' ? 'bg-[#F8FAFC]' : 'bg-[#fff]'
+            }`}
+          >
+            <div className="flex items-center">
+              <Checkbox.Root
+                id={String(todo.id)}
+                className={`flex h-6 w-6 items-center justify-center rounded-6 border border-gray-300 focus:border-gray-700 focus:outline-none ${
+                  todo.status == 'completed'
+                    ? 'data-[state=checked]:border-gray-700 data-[state=checked]:bg-gray-700'
+                    : ''
+                }`}
+                checked={todo.status === 'completed' ? true : false}
+                onCheckedChange={(checked) =>
+                  handleChange(todo.id, Boolean(checked))
+                }
+              >
+                <Checkbox.Indicator>
+                  <CheckIcon className="h-4 w-4 text-white" />
+                </Checkbox.Indicator>
+              </Checkbox.Root>
+              <label
+                className={`block pl-3 font-medium text-[#334155] ${
+                  todo.status == 'completed'
+                    ? 'text-[#64748B] line-through'
+                    : ''
+                }`}
+                htmlFor={String(todo.id)}
+              >
+                {todo.body}
+              </label>
+            </div>
+            <XMarkIcon
+              className="h-6 w-6 cursor-pointer text-[#334155]"
+              onClick={() => handleDeleteTodo(todo.id)}
+            />
+          </li>
+        )
+      })
+    }
+  }
+
+  return (
+    <ul ref={parentList} className="grid grid-cols-1 gap-y-3">
+      {renderTodos()}
     </ul>
   )
 }
